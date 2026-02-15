@@ -8,10 +8,17 @@
     "scheme": "tracapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "updates": {
+      "enabled": false
+    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "permissions": [
+        "RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -19,7 +26,17 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize",
+      "backgroundColor": "#09090b",
+      "package": "com.anonymous.tracapp",
+      "gradleProperties": {
+        "android.enableJetifier": true
+      }
+    },
+    "androidNavigationBar": {
+      "barStyle": "light-content",
+      "backgroundColor": "#00000000"
     },
     "web": {
       "output": "static",
@@ -27,6 +44,14 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/withAndroidXResolution",
+      [
+        "@react-native-voice/voice",
+        {
+          "microphonePermission": "Allow Trac to access the microphone for speech-to-text.",
+          "speechRecognitionPermission": "Allow Trac to use speech recognition."
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -38,11 +63,18 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5c0cf42d-cdbb-46a5-bd80-7ffc9582b602"
+      }
     }
   }
 }
