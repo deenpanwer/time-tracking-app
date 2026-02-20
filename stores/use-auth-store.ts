@@ -10,27 +10,26 @@ interface User {
 
 interface AuthState {
   user: User | null;
+  userData: any | null;
   token: string | null;
   isLoading: boolean;
   setAuth: (user: User, token: string) => void;
+  setUserData: (data: any) => void;
   setLoading: (loading: boolean) => void;
   logout: () => void;
 }
 
-/**
- * Auth store using Zustand with persistence.
- * This stays outside the React component tree (no provider needed),
- * making it extremely fast and accessible anywhere in the app.
- */
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
+      userData: null,
       token: null,
       isLoading: false,
       setAuth: (user, token) => set({ user, token, isLoading: false }),
+      setUserData: (userData) => set({ userData }),
       setLoading: (loading) => set({ isLoading: loading }),
-      logout: () => set({ user: null, token: null, isLoading: false }),
+      logout: () => set({ user: null, userData: null, token: null, isLoading: false }),
     }),
     {
       name: 'auth-storage',

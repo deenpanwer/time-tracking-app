@@ -3,7 +3,7 @@ import { View, TouchableOpacity, Dimensions, useColorScheme, ScrollView, TextInp
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Typography } from '@/components/ui/Typography';
-import { ChevronLeft, LogOut, Settings, User, SquarePen, Clock, Briefcase, MoreVertical, Trash2, Check, X } from 'lucide-react-native';
+import { ChevronLeft, LogOut, Settings, User, SquarePen, Clock, Briefcase, MoreVertical, Trash2, Check, X, UserPlus, LayoutDashboard, Users } from 'lucide-react-native';
 import { Button } from '@/components/ui/Button';
 import Animated, { 
   useSharedValue, 
@@ -18,8 +18,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cn } from '@/lib/utils';
 import { fetchHistory, SearchRecord } from '@/lib/supabase';
 import { useUIStore } from '@/stores/use-ui-store';
+import { useTeam } from '@/providers/TeamProvider';
 
 import { GlowFeedback } from '@/components/ui/GlowFeedback';
+import { InviteModal } from '../dashboard/InviteModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.9;
@@ -43,6 +45,7 @@ export const ChatSidebar = forwardRef<ChatSidebarRef, ChatSidebarProps>(({ child
   const startX = useSharedValue(0);
   const isOpening = useSharedValue(false);
   const { user, logout } = useAuthStore();
+  const { employees, owner, orgData } = useTeam();
   const { setCurrentParentId, setActiveSearchId, activeSearchId: activeStoreId } = useUIStore();
 
   const [history, setHistory] = useState<Array<{ id: string; title: string }>>([]);
@@ -50,11 +53,11 @@ export const ChatSidebar = forwardRef<ChatSidebarRef, ChatSidebarProps>(({ child
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   React.useEffect(() => {
     if (user?.email) {
       fetchHistory(user.email).then((data) => {
-        // Group follow-ons: Only show searches that don't have a parent (root searches)
         const rootSearches = data.filter(s => !s.parent_id);
         const mapped = rootSearches.map(s => ({
           id: s.id,
@@ -171,7 +174,7 @@ export const ChatSidebar = forwardRef<ChatSidebarRef, ChatSidebarProps>(({ child
   });
 
   const avatarSeed = user?.email || 'anonymous';
-  const avatarUrl = `https://api.dicebear.com/9.x/bottts-neutral/svg?seed=${encodeURIComponent(avatarSeed)}`;
+  const avatarUrl = `https://api.dicebear.com/9.x/bottts-neutral/png?seed=${encodeURIComponent(avatarSeed)}`;
 
   return (
     <GestureDetector gesture={panGesture}>
@@ -221,7 +224,7 @@ export const ChatSidebar = forwardRef<ChatSidebarRef, ChatSidebarProps>(({ child
           >
             <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
               <View className="flex-row items-center justify-between mb-8 px-2">
-                <Typography className="font-poppins text-2xl">trac AI</Typography>
+                <Typography className="font-poppins text-2xl">trac ADMIN</Typography>
                 <TouchableOpacity 
                   onPress={() => close()}
                   className="w-8 h-8 items-center justify-center"
@@ -230,224 +233,77 @@ export const ChatSidebar = forwardRef<ChatSidebarRef, ChatSidebarProps>(({ child
                 </TouchableOpacity>
               </View>
 
-              {/* Tabs Section */}
-              <View className="space-y-4">
-                {/* New Search Tab */}
-                <TouchableOpacity 
-                  onPress={() => {
-                    setActiveSearchId('new');
-                    setCurrentParentId(null);
-                    close();
-                  }}
-                  className={cn(
-                    "flex-row items-center h-14 px-4 rounded-2xl active:bg-secondary/50",
-                    activeStoreId === 'new' ? "bg-primary" : "bg-secondary/30"
-                  )}
-                >
-                  <SquarePen size={20} color={activeStoreId === 'new' ? "#fff" : (isDark ? "#fff" : "#000")} />
-                  <Typography className={cn(
-                    "ml-3 font-montserrat-bold text-[15px]",
-                    activeStoreId === 'new' ? "text-white" : "text-foreground"
-                  )}>New search</Typography>
-                </TouchableOpacity>
-                
-                {/* History Section */}
-                <View className="mt-4">
-                  <View className="flex-row items-center h-10 px-4 rounded-xl">
-                    <Clock size={16} color={isDark ? "#94a3b8" : "#64748b"} />
-                    <Typography className="ml-3 text-muted-foreground font-poppins text-[10px] uppercase tracking-[1.5px]">History</Typography>
-                  </View>
-                  
-                  <View className="relative pl-9 mt-1">
-                    <View className="absolute left-[24px] top-0 bottom-0 w-[1.5px] bg-border/20 rounded-full" />
-                    
-                    {history.length === 0 ? (
-                      <View className="py-2">
-                        <Typography className="text-muted-foreground/40 text-[13px] font-montserrat italic">Nothing to show</Typography>
-                      </View>
-                    ) : (
-                      <View className="space-y-3 py-2">
-                        {history.map((item) => (
-                          <View key={item.id} className="relative">
-                            <TouchableOpacity 
-                              onPress={() => {
-                                if (editingId !== item.id) {
-                                  setActiveSearchId(item.id);
-                                  setCurrentParentId(item.id);
-                                  setMenuId(null);
-                                  close();
-                                }
-                              }}
-                              className={cn(
-                                "flex-row items-center justify-between py-3 px-4 rounded-xl border",
-                                activeStoreId === item.id 
-                                  ? "bg-secondary/40 border-primary/30" 
-                                  : "bg-secondary/5 border-transparent"
-                              )}
-                            >
-                              {editingId === item.id ? (
-                                <TextInput
-                                  value={editValue}
-                                  onChangeText={setEditValue}
-                                  autoFocus
-                                  onBlur={saveRename}
-                                  onSubmitEditing={saveRename}
-                                  className="flex-1 text-sm font-montserrat text-foreground p-0 m-0"
-                                  selectionColor="#a855f7"
-                                />
-                              ) : (
-                                <Typography numberOfLines={1} className={cn(
-                                  "flex-1 text-sm font-montserrat",
-                                  activeStoreId === item.id ? "text-foreground font-montserrat-bold" : "text-foreground/70"
-                                )}>
-                                  {item.title}
-                                </Typography>
-                              )}
-                              
-                              <View className="flex-row items-center">
-                                {editingId === item.id ? (
-                                  <TouchableOpacity onPress={saveRename} className="p-1">
-                                    <Check size={16} color="#10b981" />
-                                  </TouchableOpacity>
-                                ) : (
-                                  <TouchableOpacity 
-                                    onPress={() => setMenuId(menuId === item.id ? null : item.id)} 
-                                    className="p-1 -mr-1"
-                                  >
-                                    <MoreVertical size={16} color={isDark ? "#94a3b8" : "#64748b"} />
-                                  </TouchableOpacity>
-                                )}
-                              </View>
-                            </TouchableOpacity>
+              {/* EMS Admin Navigation */}
+              <View className="space-y-6 mt-4">
+                {/* Invite Staff Member */}
+                <View>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      setShowInviteModal(true);
+                    }}
+                    className="flex-row items-center h-14 px-4 rounded-2xl bg-secondary/30 border border-border/40 active:bg-secondary/50"
+                  >
+                    <UserPlus size={20} color={isDark ? "#fff" : "#000"} />
+                    <Typography className="ml-3 font-montserrat-bold text-[15px]">Invite Staff Member</Typography>
+                  </TouchableOpacity>
 
-                            {/* Action Menu */}
-                            {menuId === item.id && (
-                              <View className="absolute right-0 top-12 bg-card border border-border/50 rounded-xl shadow-xl z-50 overflow-hidden flex-row">
-                                <TouchableOpacity 
-                                  onPress={() => handleRename(item.id, item.title)}
-                                  className="px-4 py-2 border-r border-border/20 flex-row items-center"
-                                >
-                                  <SquarePen size={14} color={isDark ? "#fff" : "#000"} />
-                                  <Typography className="ml-2 text-xs">Rename</Typography>
-                                </TouchableOpacity>
-                                <TouchableOpacity 
-                                  onPress={() => handleDelete(item.id)}
-                                  className="px-4 py-2 flex-row items-center"
-                                >
-                                  <Trash2 size={14} color="#ef4444" />
-                                  <Typography className="ml-2 text-xs text-red-500">Delete</Typography>
-                                </TouchableOpacity>
-                                <TouchableOpacity 
-                                  onPress={() => setMenuId(null)}
-                                  className="px-3 py-2 border-l border-border/20"
-                                >
-                                  <X size={14} color={isDark ? "#94a3b8" : "#64748b"} />
-                                </TouchableOpacity>
-                              </View>
-                            )}
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
+                  <InviteModal 
+                    visible={showInviteModal} 
+                    onClose={() => setShowInviteModal(false)} 
+                    inviteCode={orgData?.inviteCode || owner?.inviteCode || "------"} 
+                  />
                 </View>
 
-                {/* Hired Section */}
-                <View className="mt-8">
-                  <View className="flex-row items-center h-10 px-4 rounded-xl">
-                    <Briefcase size={16} color="#a855f7" />
-                    <Typography className="ml-3 text-purple-500/80 font-poppins text-[10px] uppercase tracking-[1.5px]">Hired</Typography>
+                {/* Overview Tab */}
+                <View className="space-y-2">
+                  <Typography variant="small" className="px-4 mb-2 text-[9px] font-black uppercase text-muted-foreground tracking-[0.2em]">System Control</Typography>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      router.push('/main');
+                      close();
+                    }}
+                    className={cn(
+                      "flex-row items-center h-14 px-4 rounded-2xl active:bg-secondary/50",
+                      "bg-primary"
+                    )}
+                  >
+                    <LayoutDashboard size={20} color="#fff" />
+                    <Typography className="ml-3 font-montserrat-bold text-[15px] text-white">Overview</Typography>
+                  </TouchableOpacity>
+                </View>
+                
+                {/* Team Section (EMS Focus) */}
+                <View className="mt-2">
+                  <View className="flex-row items-center h-10 px-4 rounded-xl mb-2">
+                    <Users size={16} color="#a855f7" />
+                    <Typography className="ml-3 text-purple-500/80 font-poppins text-[10px] uppercase tracking-[1.5px]">Staff Members</Typography>
                   </View>
                   
-                  <View className="relative pl-9 mt-2">
+                  <View className="relative pl-8">
                     <View className="absolute left-[24px] top-0 bottom-0 w-[1.5px] bg-purple-500/10 rounded-full" />
                     
-                    {hired.length === 0 ? (
-                      <View className="py-4">
-                        <Typography className="text-muted-foreground/40 text-[13px] font-montserrat italic">Nothing to show</Typography>
-                      </View>
-                    ) : (
-                      <View className="space-y-4 py-2">
-                        {hired.map((item) => (
-                          <View key={item.id} className="relative">
-                            <TouchableOpacity 
-                              onPress={() => {
-                                if (editingId !== item.id) {
-                                  setActiveSearchId(item.id);
-                                  setMenuId(null);
-                                }
-                              }}
-                              className={cn(
-                                "flex-row items-center justify-between py-3 px-4 rounded-xl border",
-                                activeStoreId === item.id 
-                                  ? "bg-purple-500/10 border-purple-500/30" 
-                                  : "bg-purple-500/5 border-transparent"
-                              )}
-                            >
-                              {editingId === item.id ? (
-                                <TextInput
-                                  value={editValue}
-                                  onChangeText={setEditValue}
-                                  autoFocus
-                                  onBlur={saveRename}
-                                  onSubmitEditing={saveRename}
-                                  className="flex-1 text-sm font-montserrat text-foreground p-0 m-0"
-                                  selectionColor="#a855f7"
-                                />
-                              ) : (
-                                <Typography numberOfLines={1} className={cn(
-                                  "flex-1 text-sm font-montserrat",
-                                  activeStoreId === item.id ? "text-purple-500 font-montserrat-bold" : "text-foreground/70"
-                                )}>
-                                  {item.title}
-                                </Typography>
-                              )}
-                              
-                              <View className="flex-row items-center">
-                                {editingId === item.id ? (
-                                  <TouchableOpacity onPress={saveRename} className="p-1">
-                                    <Check size={16} color="#10b981" />
-                                  </TouchableOpacity>
-                                ) : (
-                                  <TouchableOpacity 
-                                    onPress={() => setMenuId(menuId === item.id ? null : item.id)} 
-                                    className="p-1 -mr-1"
-                                  >
-                                    <MoreVertical size={16} color="#a855f7" />
-                                  </TouchableOpacity>
-                                )}
-                              </View>
-                            </TouchableOpacity>
-
-                            {/* Action Menu */}
-                            {menuId === item.id && (
-                              <View className="absolute right-0 top-12 bg-card border border-border/50 rounded-xl shadow-xl z-50 overflow-hidden flex-row">
-                                <TouchableOpacity 
-                                  onPress={() => handleRename(item.id, item.title)}
-                                  className="px-4 py-2 border-r border-border/20 flex-row items-center"
-                                >
-                                  <SquarePen size={14} color={isDark ? "#fff" : "#000"} />
-                                  <Typography className="ml-2 text-xs">Rename</Typography>
-                                </TouchableOpacity>
-                                <TouchableOpacity 
-                                  onPress={() => handleDelete(item.id)}
-                                  className="px-4 py-2 flex-row items-center"
-                                >
-                                  <Trash2 size={14} color="#ef4444" />
-                                  <Typography className="ml-2 text-xs text-red-500">Delete</Typography>
-                                </TouchableOpacity>
-                                <TouchableOpacity 
-                                  onPress={() => setMenuId(null)}
-                                  className="px-3 py-2 border-l border-border/20"
-                                >
-                                  <X size={14} color={isDark ? "#94a3b8" : "#64748b"} />
-                                </TouchableOpacity>
-                              </View>
-                            )}
-                          </View>
-                        ))}
-                      </View>
-                    )}
+                    {/* Real Team List from useTeam */}
+                    <View className="space-y-1">
+                      {employees.length === 0 ? (
+                        <Typography variant="small" className="px-4 py-2 text-[10px] text-muted-foreground italic">No active personnel</Typography>
+                      ) : (
+                        employees.map((emp) => (
+                          <TouchableOpacity 
+                            key={emp.id}
+                            onPress={() => {
+                              router.push(`/dashboard/team/${emp.id}`);
+                              close();
+                            }}
+                            className="flex-row items-center py-3.5 px-4 rounded-xl border border-transparent active:bg-purple-500/5"
+                          >
+                            <View className="size-1.5 rounded-full bg-purple-500/40 mr-4" />
+                            <Typography className="text-[14px] font-montserrat font-bold text-muted-foreground active:text-purple-500">
+                              {emp.name}
+                            </Typography>
+                          </TouchableOpacity>
+                        ))
+                      )}
+                    </View>
                   </View>
                 </View>
               </View>
@@ -470,10 +326,10 @@ export const ChatSidebar = forwardRef<ChatSidebarRef, ChatSidebarProps>(({ child
                   </View>
                   <View className="ml-3 flex-1">
                     <Typography className="font-montserrat-bold text-[15px]">
-                      {user?.name || 'Anonymous'}
+                      {owner?.name || user?.name || 'Anonymous'}
                     </Typography>
                     <Typography className="text-muted-foreground text-xs" numberOfLines={1}>
-                      {user?.email || 'Guest User'}
+                      {owner?.email || user?.email || 'Guest User'}
                     </Typography>
                   </View>
                   <TouchableOpacity className="p-2" onPress={() => router.push('/profile')}>

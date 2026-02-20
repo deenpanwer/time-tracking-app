@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, Moon, Sun, Mail, Lock } from 'lucide-react-native';
@@ -10,13 +10,17 @@ import { IconButton } from '@/components/ui/IconButton';
 import { useColorScheme } from 'nativewind';
 import { useAuthStore } from '@/stores/use-auth-store';
 import { z } from 'zod';
-import { supabase } from '@/lib/supabase';
-import * as AuthSession from 'expo-auth-session';
-import * as Linking from 'expo-linking';
-import * as WebBrowser from 'expo-web-browser';
+import { auth, firestore } from '@/lib/firebase';
+import { signInWithEmailAndPassword, onAuthStateChanged, signInWithCredential, GoogleAuthProvider } from '@react-native-firebase/auth';
+import { getDoc, doc, setDoc, serverTimestamp } from '@react-native-firebase/firestore';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 import GoogleLogo from '@/assets/images/google-logo.svg';
 import AppleLogo from '@/assets/images/apple-logo.svg';
+
+GoogleSignin.configure({
+  webClientId: '278674911210-lk40pk3m388ddsj3po4q8cusrehnn1f9.apps.googleusercontent.com',
+});
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,8 +28,13 @@ export default function LoginPage() {
   const isDark = colorScheme === 'dark';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isMounted, setIsMounted] = useState(false);
 
-  const { setAuth, isLoading, setLoading } = useAuthStore();
+  const { setAuth, setUserData, isLoading, setLoading } = useAuthStore();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const isEmailValid = z.string().email().safeParse(email).success;
 
@@ -33,62 +42,133 @@ export default function LoginPage() {
     setColorScheme(isDark ? 'light' : 'dark');
   };
 
-  useEffect(() => {
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        setAuth({
-          id: session.user.id,
-          email: session.user.email || '',
-          name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
-        }, session.access_token);
-        router.replace('/main');
-      }
-    });
+  const handleEmailLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter email and password');
+      return;
+    }
+    try {
+      setLoading(true);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
 
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
+      const userDoc = await getDoc(doc(firestore, "users", user.uid));
+      if (!userDoc.exists()) {
+        const orgId = `org_${Math.random().toString(36).substr(2, 9)}`;
+        const orgName = `${user.displayName || 'Enterprise'}'s Org`;
+        const trialExpiry = new Date();
+        trialExpiry.setDate(trialExpiry.getDate() + 14);
+
+        await setDoc(doc(firestore, "organizations", orgId), {
+          name: orgName,
+          ownerId: user.uid,
+          inviteCode: Math.floor(100000 + Math.random() * 900000).toString(),
+          subscriptionStatus: "trialing",
+          subscriptionExpiry: trialExpiry,
+          createdAt: serverTimestamp()
+        });
+
+        await setDoc(doc(firestore, "users", user.uid), {
+          email: user.email,
+          name: user.displayName,
+          photoUrl: user.photoURL,
+          role: "owner",
+          orgName: orgName,
+          ownedOrgId: orgId,
+          uid: user.uid,
+          onboardingCompleted: false,
+          createdAt: serverTimestamp()
+        });
+
+        Alert.alert("Welcome", "Let's set up your workspace.");
+        router.replace("/dashboard/onboarding");
+      } else {
+        const userData = userDoc.data();
+        if (userData && !userData.onboardingCompleted) {
+          router.replace("/dashboard/onboarding");
+        } else {
+          Alert.alert("Welcome back", "You have successfully signed in.");
+          router.replace("/main"); // Keep existing navigation for fully onboarded users
+        }
+      }
+    } catch (error: any) {
+      setLoading(false);
+      Alert.alert('Login Error', error.message);
+    }
+  };
 
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
-      // Hardcode the scheme to match Supabase dashboard 'Redirect URLs'
-      const redirectUrl = 'tracapp://login';
+      await GoogleSignin.hasPlayServices();
       
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          skipBrowserRedirect: true,
-        },
-      });
-
-      if (error) throw error;
-
-      const res = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
-
-      if (res.type === 'success') {
-        // The redirect will trigger onAuthStateChange
-      } else {
-        setLoading(false);
+      // Force account selection by signing out first
+      try {
+        await GoogleSignin.signOut();
+      } catch (e) {
+        // Ignore if not signed in
       }
+
+      const response = await GoogleSignin.signIn();
+      
+      const idToken = response.data?.idToken;
+      
+      if (!idToken) {
+        throw new Error('Google Sign-In failed: No ID Token received.');
+      }
+
+      const googleCredential = GoogleAuthProvider.credential(idToken);
+      const userCredential = await signInWithCredential(auth, googleCredential);
+      const user = userCredential.user;
+
+      const userDoc = await getDoc(doc(firestore, "users", user.uid));
+      if (!userDoc.exists()) {
+        const orgId = `org_${Math.random().toString(36).substr(2, 9)}`;
+        const orgName = `${user.displayName || 'Enterprise'}'s Org`;
+        const trialExpiry = new Date();
+        trialExpiry.setDate(trialExpiry.getDate() + 14);
+
+        await setDoc(doc(firestore, "organizations", orgId), {
+          name: orgName,
+          ownerId: user.uid,
+          inviteCode: Math.floor(100000 + Math.random() * 900000).toString(),
+          subscriptionStatus: "trialing",
+          subscriptionExpiry: trialExpiry,
+          createdAt: serverTimestamp()
+        });
+
+        await setDoc(doc(firestore, "users", user.uid), {
+          email: user.email,
+          name: user.displayName,
+          photoUrl: user.photoURL,
+          role: "owner",
+          orgName: orgName,
+          ownedOrgId: orgId,
+          uid: user.uid,
+          onboardingCompleted: false,
+          createdAt: serverTimestamp()
+        });
+        
+        Alert.alert("Welcome", "Let's set up your workspace.");
+        router.replace("/dashboard/onboarding");
+      } else {
+        const userData = userDoc.data();
+        if (userData && !userData.onboardingCompleted) {
+          router.replace("/dashboard/onboarding");
+        } else {
+          Alert.alert("Welcome back", "You have successfully signed in.");
+          router.replace("/main"); // Keep existing navigation for fully onboarded users
+        }
+      }
+      // AuthProvider will handle navigation via state changes for existing users
     } catch (error: any) {
       setLoading(false);
-      Alert.alert('Login Error', error.message || 'Failed to sign in with Google');
+      console.error('Google Sign-In error details:', error);
+      Alert.alert('Google Login Error', error.message || 'Failed to sign in with Google');
     }
   };
 
-  const handleNavigation = () => {
-    // Mock login for UI testing
-    setAuth({
-      id: '1',
-      email: email || 'founder@trac.ai',
-      name: 'Trac Founder',
-    }, 'mock-token');
-    
-    router.replace('/main');
-  };
+  if (!isMounted) return null;
 
   return (
     <SafeAreaView className="flex-1 bg-background">
@@ -150,8 +230,9 @@ export default function LoginPage() {
           <Button 
             title="Log in"
             className="bg-trac-purple h-14 rounded-3xl mt-8 shadow-lg shadow-trac-purple/30"
+            loading={isLoading}
             textClassName="text-white text-lg font-montserrat-bold"
-            onPress={handleNavigation}
+            onPress={handleEmailLogin}
           />
         </View>
 
@@ -169,7 +250,7 @@ export default function LoginPage() {
               leftIcon={<AppleLogo width={20} height={20} color={isDark ? '#fff' : '#000'} />}
               title="Sign in with Apple"
               textClassName="text-foreground font-montserrat-bold"
-              onPress={handleNavigation}
+              onPress={() => {}} 
             />
             <Button 
               variant="outline"

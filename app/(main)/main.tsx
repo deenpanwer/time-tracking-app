@@ -5,6 +5,8 @@ import { View, TouchableOpacity } from 'react-native';
 import { useColorScheme } from 'nativewind';
 import { Menu } from 'lucide-react-native';
 import { ChatSidebar, ChatSidebarRef } from '@/components/chat/ChatSidebar';
+import { Typography } from '@/components/ui/Typography';
+import { DashboardView } from '@/components/dashboard/DashboardView';
 
 export default function HomePage() {
   const { colorScheme } = useColorScheme();
@@ -24,7 +26,11 @@ export default function HomePage() {
           </TouchableOpacity>
         </View>
 
-        <ChatInterface />
+        {/* EMS Dashboard View */}
+        <DashboardView />
+
+        {/* Hiring feature components on backburner */}
+        {/* <ChatInterface /> */}
       </SafeAreaView>
     </ChatSidebar>
   );

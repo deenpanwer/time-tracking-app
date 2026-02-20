@@ -10,6 +10,8 @@ import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-rean
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Colors } from '@/constants/theme';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { TeamProvider } from '@/providers/TeamProvider';
+import { AuthProvider } from '@/providers/AuthProvider';
 
 // Fix Reanimated warning and ensure it doesn't flood logs
 configureReanimatedLogger({
@@ -55,19 +57,30 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       {/* 
-        CRITICAL: DO NOT MODIFY KeyboardProvider PROPS. 
-        The statusBarTranslucent and navigationBarTranslucent props are essential 
-        for maintaining keyboard stability in edge-to-edge mode. 
-        Modification requires explicit user approval. 
+        CRITICAL: The statusBarTranslucent and navigationBarTranslucent props 
+        are now handled by react-native-edge-to-edge/expo-system-ui.
       */}
-      <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
+      <KeyboardProvider>
         <QueryClientProvider client={queryClient}>
-          <ThemeProvider value={isDark ? CustomDarkTheme : CustomLightTheme}>
-            <View style={{ flex: 1, backgroundColor: isDark ? Colors.dark.background : Colors.light.background }} className={isDark ? 'dark' : ''}>
-              <StatusBar style="auto" />
-              <Stack screenOptions={{ headerShown: false, animation: 'fade' }} />
-            </View>
-          </ThemeProvider>
+          <AuthProvider>
+            <TeamProvider>
+              <ThemeProvider value={isDark ? CustomDarkTheme : CustomLightTheme}>
+                {/* 
+                  The 'key' prop on the View forces a re-mount of the themed container 
+                  when isDark changes, ensuring that Tailwind's 'dark' class 
+                  is correctly applied to the root.
+                */}
+                <View 
+                  key={isDark ? 'dark' : 'light'}
+                  style={{ flex: 1, backgroundColor: isDark ? Colors.dark.background : Colors.light.background }} 
+                  className={isDark ? 'dark' : ''}
+                >
+                  <StatusBar style={isDark ? 'light' : 'dark'} />
+                  <Stack screenOptions={{ headerShown: false, animation: 'fade' }} />
+                </View>
+              </ThemeProvider>
+            </TeamProvider>
+          </AuthProvider>
         </QueryClientProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>

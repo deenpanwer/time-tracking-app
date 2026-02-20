@@ -9,22 +9,20 @@ export function useLoadAssets() {
   useEffect(() => {
     async function loadResourcesAndDataAsync() {
       try {
-        // Set ready immediately to prevent blocking the UI
-        setIsReady(true);
-        
-        // Hide splash screen as soon as we are "ready" to show our own splash
-        await SplashScreen.hideAsync();
-
-        // Load fonts in the background
-        Font.loadAsync({
+        // Load fonts first
+        await Font.loadAsync({
           'Poppins_600SemiBold': require('../assets/fonts/Poppins_600SemiBold.ttf'),
           'Montserrat_400Regular': require('../assets/fonts/Montserrat_400Regular.ttf'),
           'Montserrat_700Bold': require('../assets/fonts/Montserrat_700Bold.ttf'),
           ...Ionicons.font,
-        }).catch(err => console.warn("Background font load failed", err));
+        });
+
+        // Hide splash screen after fonts are loaded
+        await SplashScreen.hideAsync();
 
       } catch (e) {
         console.warn('Load resources error:', e);
+      } finally {
         setIsReady(true);
       }
     }

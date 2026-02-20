@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, Moon, Sun, User, Mail, Lock } from 'lucide-react-native';
@@ -10,6 +10,10 @@ import { IconButton } from '@/components/ui/IconButton';
 import { useColorScheme } from 'nativewind';
 import { useAuthStore } from '@/stores/use-auth-store';
 import { z } from 'zod';
+import { auth, firestore } from '@/lib/firebase';
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithCredential, GoogleAuthProvider, updateProfile } from '@react-native-firebase/auth';
+import { getDoc, doc, setDoc, serverTimestamp } from '@react-native-firebase/firestore';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 import GoogleLogo from '@/assets/images/google-logo.svg';
 import AppleLogo from '@/assets/images/apple-logo.svg';
@@ -18,9 +22,10 @@ export default function SignupPage() {
   const router = useRouter();
   const { colorScheme, setColorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const { setAuth } = useAuthStore();
+  const { setAuth, setUserData, isLoading, setLoading } = useAuthStore();
   
   const [name, setName] = useState('');
+  const [orgName, setOrgName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -30,15 +35,110 @@ export default function SignupPage() {
     setColorScheme(isDark ? 'light' : 'dark');
   };
 
-  const handleNavigation = () => {
-    // Mock signup for UI testing
-    setAuth({
-      id: Date.now().toString(),
-      email: email || 'newuser@trac.ai',
-      name: name || 'New User',
-    }, 'mock-token');
-    
-    router.replace('/main');
+  const handleSignup = async () => {
+    if (!email || !password || !name || !orgName) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+    try {
+      setLoading(true);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      await updateProfile(user, {
+        displayName: name,
+      });
+
+      const orgId = `org_${Math.random().toString(36).substr(2, 9)}`;
+      const trialExpiry = new Date();
+      trialExpiry.setDate(trialExpiry.getDate() + 14);
+
+      // Create Organization
+      await setDoc(doc(firestore, "organizations", orgId), {
+        name: orgName,
+        ownerId: user.uid,
+        inviteCode: Math.floor(100000 + Math.random() * 900000).toString(),
+        subscriptionStatus: "trialing",
+        subscriptionExpiry: trialExpiry,
+        createdAt: serverTimestamp()
+      });
+
+      // Create User Profile WITH ownedOrgId
+      await setDoc(doc(firestore, "users", user.uid), {
+        email: user.email,
+        name: name,
+        photoUrl: user.photoURL,
+        role: "owner",
+        orgName: orgName,
+        ownedOrgId: orgId,
+        uid: user.uid,
+        onboardingCompleted: false,
+        createdAt: serverTimestamp()
+      });
+
+      Alert.alert('Account created', 'Your organization has been set up successfully.');
+      router.replace('/dashboard/onboarding');
+    } catch (error: any) {
+      setLoading(false);
+      Alert.alert('Signup Error', error.message);
+    }
+  };
+
+  const handleGoogleSignup = async () => {
+    try {
+      setLoading(true);
+      await GoogleSignin.hasPlayServices();
+      
+      // Force account selection
+      try {
+        await GoogleSignin.signOut();
+      } catch (e) {}
+
+      const response = await GoogleSignin.signIn();
+      
+      const idToken = response.data?.idToken;
+      
+      if (!idToken) {
+        throw new Error('Google Sign-In failed: No ID Token received.');
+      }
+
+      const googleCredential = GoogleAuthProvider.credential(idToken);
+      const userCredential = await signInWithCredential(auth, googleCredential);
+      const user = userCredential.user;
+
+      const userDoc = await getDoc(doc(firestore, "users", user.uid));
+      if (!userDoc.exists()) {
+        const orgId = `org_${Math.random().toString(36).substr(2, 9)}`;
+        const generatedOrgName = `${user.displayName || 'Enterprise'}'s Org`;
+        const trialExpiry = new Date();
+        trialExpiry.setDate(trialExpiry.getDate() + 14);
+
+        await setDoc(doc(firestore, "organizations", orgId), {
+          name: generatedOrgName,
+          ownerId: user.uid,
+          inviteCode: Math.floor(100000 + Math.random() * 900000).toString(),
+          subscriptionStatus: "trialing",
+          subscriptionExpiry: trialExpiry,
+          createdAt: serverTimestamp()
+        });
+
+        await setDoc(doc(firestore, "users", user.uid), {
+          email: user.email,
+          name: user.displayName,
+          photoUrl: user.photoURL,
+          role: "owner",
+          orgName: generatedOrgName,
+          ownedOrgId: orgId,
+          uid: user.uid,
+          onboardingCompleted: false,
+          createdAt: serverTimestamp()
+        });
+      }
+      router.replace("/dashboard/onboarding");
+    } catch (error: any) {
+      setLoading(false);
+      Alert.alert('Google Signup Error', error.message || 'Failed to sign up with Google');
+    }
   };
 
   return (
@@ -79,6 +179,14 @@ export default function SignupPage() {
             />
 
             <AuthInput 
+              value={orgName}
+              onChangeText={setOrgName}
+              placeholder="Organization Name"
+              leftIcon={<User size={20} color={isDark ? "#94A3B8" : "#64748B"} />}
+              autoCapitalize="words"
+            />
+
+            <AuthInput 
               value={email}
               onChangeText={setEmail}
               placeholder="Email Address"
@@ -100,8 +208,9 @@ export default function SignupPage() {
           <Button 
             title="Sign up"
             className="bg-trac-purple h-14 rounded-3xl mt-6 shadow-lg shadow-trac-purple/30"
+            loading={isLoading}
             textClassName="text-white text-lg font-montserrat-bold"
-            onPress={handleNavigation}
+            onPress={handleSignup}
           />
         </View>
 
@@ -119,15 +228,16 @@ export default function SignupPage() {
               leftIcon={<AppleLogo width={20} height={20} color={isDark ? '#fff' : '#000'} />}
               title="Sign up with Apple"
               textClassName="text-foreground font-montserrat-bold"
-              onPress={handleNavigation}
+              onPress={() => {}}
             />
             <Button 
               variant="outline"
               className="border-border h-14 rounded-3xl bg-card"
               leftIcon={<GoogleLogo width={20} height={20} />}
               title="Sign up with Google"
+              loading={isLoading}
               textClassName="text-foreground font-montserrat-bold"
-              onPress={handleNavigation}
+              onPress={handleGoogleSignup}
             />
           </View>
 

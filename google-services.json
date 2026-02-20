@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "278674911210",
+    "project_id": "trac-dairy",
+    "storage_bucket": "trac-dairy.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:278674911210:android:a510fe97e3b23f0d1a8c93",
+        "android_client_info": {
+          "package_name": "com.anonymous.tracapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "278674911210-491asjg4k0ji4bjsa87iurd9n5vuhirp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.anonymous.tracapp",
+            "certificate_hash": "f5178325cc18d48ecd7a545b2bde1ed15f33fdc3"
+          }
+        },
+        {
+          "client_id": "278674911210-lk40pk3m388ddsj3po4q8cusrehnn1f9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDAO94xhqVbVXAGZHJdT_cBE-tD5uj_Gk4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "278674911210-1h4md3nqiasosanfetaunoakg73nt3pk.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

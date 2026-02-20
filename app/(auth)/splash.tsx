@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { View, Platform, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
+import auth from '@react-native-firebase/auth';
 import Svg, { Path } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import Animated, { 
@@ -81,9 +82,14 @@ export default function SplashPage() {
       );
     }, 1200); // Wait for drawing to be mostly complete
 
-    // 4. Exit to Login
+    // 4. Exit based on Auth State
     const exitTimer = setTimeout(() => {
-      runOnJS(() => router.replace('/login'))();
+      const user = auth().currentUser;
+      if (user) {
+        runOnJS(() => router.replace('/main'))();
+      } else {
+        runOnJS(() => router.replace('/login'))();
+      }
     }, 2800);
 
     return () => {

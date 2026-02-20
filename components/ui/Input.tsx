@@ -22,7 +22,7 @@ export function Input({
 }: InputProps) {
   return (
     <View className={cn("mb-4 w-full", containerClassName)}>
-      {label && <Typography variant="label" className="mb-2 ml-1">{label}</Typography>}
+      {!!label ? <Typography variant="label" className="mb-2 ml-1">{label}</Typography> : null}
       <View 
         className={cn(
           "flex-row items-center bg-secondary/30 border border-transparent rounded-2xl px-4 h-14 focus:border-primary",
@@ -38,7 +38,7 @@ export function Input({
         />
         {rightIcon && <View className="ml-3">{rightIcon}</View>}
       </View>
-      {error && <Typography variant="small" className="text-destructive mt-1 ml-1">{error}</Typography>}
+      {!!error ? <Typography variant="small" className="text-destructive mt-1 ml-1">{error}</Typography> : null}
     </View>
   );
 }
